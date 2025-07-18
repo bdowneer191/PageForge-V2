@@ -1,4 +1,3 @@
-
 export interface Session {
   id: string;
   url: string;
@@ -12,9 +11,11 @@ export interface Session {
 }
 
 export interface UserProfile {
-  id: string;
-  email: string;
+  id: string; // internal UUID
+  email: string | null;
   role: 'admin' | 'user';
+  githubId?: number;
+  githubUsername?: string;
 }
 
 export interface CleaningOptions {
