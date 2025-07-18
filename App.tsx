@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useAuth } from './hooks/useAuth.tsx';
 import Icon from './components/Icon.tsx';
@@ -150,7 +149,7 @@ const App = () => {
                     desktop: newReport.desktop.lighthouseResult.categories.performance.score,
                 },
                 userId: user?.id,
-                userEmail: user?.email,
+                userEmail: user?.email || user?.githubUsername, // Use username as fallback
             };
             
             const response = await fetch('/api/sessions', {
@@ -241,7 +240,7 @@ const App = () => {
             <p className="text-gray-400 mt-1">Prod by <a href="https://github.com/nion-dev" target="_blank" rel="noopener noreferrer" className="font-semibold text-teal-300 hover:underline">Nion</a></p>
           </div>
           <div className="absolute top-0 right-0 flex items-center gap-3 p-2 bg-gray-900/80 border border-gray-800 rounded-full">
-            <span className="text-sm font-medium text-gray-300 hidden sm:inline">{user.email}</span>
+            <span className="text-sm font-medium text-gray-300 hidden sm:inline">{user.githubUsername}</span>
             {user.role === 'admin' && (
               <button 
                   onClick={() => setView('admin')}
