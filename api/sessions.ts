@@ -1,4 +1,3 @@
-
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verify } from 'jsonwebtoken';
 import { put, get, del, head } from '@vercel/blob';
@@ -6,7 +5,8 @@ import type { Session } from '../../types.ts';
 
 interface AuthPayload {
     userId: string;
-    email: string;
+    email: string | null;
+    githubUsername: string;
     role: 'admin' | 'user';
 }
 
@@ -63,7 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ...newSessionData,
                     id: `${newSessionData.startTime}-${crypto.randomUUID().slice(0, 8)}`,
                     userId: auth.userId,
-                    userEmail: auth.email
+                    userEmail: auth.email || auth.githubUsername // Use username as fallback
                 } as Session;
 
                 const updatedSessions = [sessionWithId, ...sessions];
@@ -84,7 +84,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
                 return res.status(405).json({ message: 'Method Not Allowed' });
         }
-    } catch (error: any) {
+    } catch (error: any)
+    {
         console.error('Session API Error:', error);
         return res.status(500).json({ message: `A critical server error occurred: ${error.message}` });
     }
