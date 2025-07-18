@@ -1,11 +1,8 @@
-
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { UserProfile } from '../types.ts';
 
 interface AuthContextType {
   user: UserProfile | null;
-  login: (email, password) => Promise<any>;
-  signup: (email, password) => Promise<any>;
   logout: () => Promise<void>;
   loading: boolean;
 }
@@ -36,46 +33,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     checkUser();
   }, []);
 
-  const login = async (email, password) => {
-    setLoading(true);
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setUser(data.user);
-    }
-    setLoading(false);
-    return data;
-  };
-
-  const signup = async (email, password) => {
-    setLoading(true);
-    const res = await fetch('/api/auth/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setUser(data.user);
-    }
-    setLoading(false);
-    return data;
-  };
-
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     setUser(null);
+    // Optionally redirect to login page
+    window.location.pathname = '/';
   };
 
-  const value = { user, login, signup, logout, loading };
+  const value = { user, logout, loading };
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
