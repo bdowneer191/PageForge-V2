@@ -1,3 +1,4 @@
+
 export interface Session {
   id: string;
   url: string;
@@ -6,16 +7,6 @@ export interface Session {
   duration: number;
   beforeScores: { mobile: number, desktop: number };
   afterScores: { mobile: number, desktop: number };
-  userId: string;
-  userEmail: string | null;
-}
-
-export interface UserProfile {
-  id: string; // internal UUID
-  email: string | null;
-  role: 'admin' | 'user';
-  githubId?: number;
-  githubUsername?: string;
 }
 
 export interface CleaningOptions {
