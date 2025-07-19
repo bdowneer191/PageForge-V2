@@ -1,3 +1,4 @@
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verify } from 'jsonwebtoken';
 import type { UserProfile } from '../../types.ts';
@@ -23,7 +24,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
         const decoded = verify(token, JWT_SECRET) as { 
             userId: string; 
             email: string | null; 
-            role: 'admin' | 'user'; 
+            role: 'admin' | 'user';
             githubId?: number;
             githubUsername?: string;
         };
