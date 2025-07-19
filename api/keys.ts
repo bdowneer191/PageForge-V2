@@ -1,5 +1,6 @@
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { put, get, del } from '@vercel/blob';
+import { put, list, del } from '@vercel/blob';
 import { ApiKeys } from '../types.ts';
 
 const getBlobPath = (sessionId: string) => `keys/${sessionId}.json`;
@@ -19,29 +20,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         switch (req.method) {
-            case 'POST':
+            case 'POST': {
                 const { pageSpeedApiKey, geminiApiKey } = req.body as ApiKeys;
-                if (!pageSpeedApiKey && !geminiApiKey) {
+
+                // Fetch existing keys to merge, not just overwrite
+                let existingKeys: ApiKeys = {};
+                try {
+                    const listResult = await list({ prefix: blobPath, limit: 1 });
+                    if (listResult.blobs.length > 0) {
+                        const existingBlob = await fetch(listResult.blobs[0].url);
+                        existingKeys = await existingBlob.json();
+                        await del(listResult.blobs[0].url); // Delete old blob before creating new one
+                    }
+                } catch(e) {
+                     console.log("No existing keys found or failed to retrieve, creating new.", e)
+                }
+                
+                const newKeys: ApiKeys = {
+                    pageSpeedApiKey: pageSpeedApiKey || existingKeys.pageSpeedApiKey,
+                    geminiApiKey: geminiApiKey || existingKeys.geminiApiKey,
+                };
+                
+                if (!newKeys.pageSpeedApiKey && !newKeys.geminiApiKey) {
                     return res.status(400).json({ message: 'At least one API key must be provided.' });
                 }
-                await put(blobPath, JSON.stringify({ pageSpeedApiKey, geminiApiKey }));
-                return res.status(200).json({ message: 'API keys saved successfully.' });
 
-            case 'GET':
-                try {
-                    const blobResponse = await get(blobPath);
-                    const blobJson = await blobResponse.json();
-                    return res.status(200).json(blobJson);
-                } catch (error: any) {
-                    if (error.statusCode === 404) {
-                        return res.status(404).json({ message: 'No API keys found for this session.' });
-                    }
-                    throw error;
+                await put(blobPath, JSON.stringify(newKeys), { access: 'public', addRandomSuffix: false });
+                return res.status(200).json({ message: 'API keys saved successfully.' });
+            }
+
+            case 'GET': {
+                const listResult = await list({ prefix: blobPath, limit: 1 });
+                if (listResult.blobs.length === 0) {
+                    return res.status(404).json({ message: 'No API keys found for this session.' });
                 }
+                const blob = listResult.blobs[0];
+                const blobResponse = await fetch(blob.url);
+                const blobJson = await blobResponse.json();
+                return res.status(200).json(blobJson);
+            }
             
-            case 'DELETE':
-                await del(blobPath);
+            case 'DELETE': {
+                const listResult = await list({ prefix: blobPath });
+                if (listResult.blobs.length > 0) {
+                    const urlsToDelete = listResult.blobs.map(b => b.url);
+                    await del(urlsToDelete);
+                }
                 return res.status(200).json({ message: 'API keys cleared successfully.' });
+            }
 
             default:
                 res.setHeader('Allow', ['POST', 'GET', 'DELETE']);
