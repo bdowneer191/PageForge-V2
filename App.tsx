@@ -1,12 +1,9 @@
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { useAuth } from './hooks/useAuth.tsx';
+import React, { useState, useCallback, useEffect } from 'react';
 import Icon from './components/Icon.tsx';
 import SetupGuide from './components/SetupGuide.tsx';
 import SessionLog from './components/SessionLog.tsx';
 import SessionTimer from './components/SessionTimer.tsx';
-import Auth from './components/Auth.tsx';
-import AdminDashboard from './components/AdminDashboard.tsx';
 import useCleaner from './hooks/useCleaner.ts';
 import { generateOptimizationPlan, generateComparisonAnalysis } from './services/geminiService.ts';
 import { fetchPageSpeedReport } from './services/pageSpeedService.ts';
@@ -55,8 +52,6 @@ const ScoreCircle = ({ score, label, loading = false }) => {
 };
 
 const App = () => {
-  const { user, logout, loading: authLoading } = useAuth();
-  const [view, setView] = useState('main'); // 'main' or 'admin'
   const [url, setUrl] = useState('');
   
   const [isMeasuring, setIsMeasuring] = useState(false);
@@ -67,7 +62,15 @@ const App = () => {
   const [comparisonAnalysis, setComparisonAnalysis] = useState(null);
   const [apiError, setApiError] = useState('');
   
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessions, setSessions] = useState<Session[]>(() => {
+    try {
+        const localData = localStorage.getItem('pageforge-sessions');
+        return localData ? JSON.parse(localData) : [];
+    } catch (error) {
+        console.error("Failed to parse sessions from localStorage", error);
+        return [];
+    }
+  });
   const [activeSessionStart, setActiveSessionStart] = useState<Date | null>(null);
 
   const { isCleaning, cleanHtml } = useCleaner();
@@ -92,27 +95,8 @@ const App = () => {
   });
 
   useEffect(() => {
-    const fetchSessions = async () => {
-        if (!user) {
-            setSessions([]);
-            return;
-        }
-        try {
-            const response = await fetch('/api/sessions');
-            if (response.ok) {
-                const data = await response.json();
-                setSessions(data);
-            } else {
-                console.error('Failed to fetch sessions');
-                setSessions([]);
-            }
-        } catch (error) {
-            console.error('Error fetching sessions:', error);
-            setSessions([]);
-        }
-    };
-    fetchSessions();
-  }, [user]);
+    localStorage.setItem('pageforge-sessions', JSON.stringify(sessions));
+  }, [sessions]);
 
   const handleMeasure = async (isRemeasure = false) => {
     if (!url) { setApiError('Please enter a URL to measure.'); return; }
@@ -136,7 +120,7 @@ const App = () => {
             setComparisonAnalysis(analysis);
 
             const sessionEndTime = new Date();
-            const newSession: Partial<Session> = {
+            const newSession: Omit<Session, 'id'> = {
                 url,
                 startTime: activeSessionStart!.toISOString(),
                 endTime: sessionEndTime.toISOString(),
@@ -149,19 +133,14 @@ const App = () => {
                     mobile: newReport.mobile.lighthouseResult.categories.performance.score,
                     desktop: newReport.desktop.lighthouseResult.categories.performance.score,
                 },
-                userId: user?.id,
-                userEmail: user?.email,
             };
             
-            const response = await fetch('/api/sessions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newSession),
-            });
-            if (response.ok) {
-                const savedSession = await response.json();
-                setSessions(prev => [savedSession, ...prev]);
-            }
+            const sessionWithId: Session = {
+                ...newSession,
+                id: `${newSession.startTime}-${crypto.randomUUID().slice(0, 8)}`,
+            };
+            setSessions(prev => [sessionWithId, ...prev]);
+
         } else {
             setPageSpeedBefore(newReport);
             setIsGeneratingPlan(true);
@@ -205,60 +184,15 @@ const App = () => {
     URL.revokeObjectURL(downloadUrl);
   };
   
-  if (authLoading) {
-     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-950">
-             <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-400"></div>
-        </div>
-     )
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950 p-4 text-center">
-        <div className="flex flex-col items-center">
-          <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300 animate-glow">PageForge AI</h1>
-          <p className="text-lg text-gray-300 mt-2 mb-8">Full Performance Analysis & Speed Boost</p>
-          <div className="max-w-md w-full">
-            <Auth />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (view === 'admin' && user.role === 'admin') {
-      return <AdminDashboard onBack={() => setView('main')} />;
-  }
-
   return (
     <div className="min-h-screen text-white bg-gray-950 p-4 sm:p-6 lg:p-8 font-sans flex flex-col">
       <div className="max-w-7xl mx-auto w-full">
-        <header className="mb-8 relative">
+        <header className="mb-8">
           <div className="text-center">
-             <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300">PageForge AI</h1>
+             <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300 animate-glow">PageForge AI</h1>
             <p className="text-lg text-gray-300 mt-2">Full Performance Analysis & Speed Boost</p>
             <p className="text-gray-400 mt-1">Prod by <a href="https://github.com/nion-dev" target="_blank" rel="noopener noreferrer" className="font-semibold text-teal-300 hover:underline">Nion</a></p>
           </div>
-          <div className="absolute top-0 right-0 flex items-center gap-3 p-2 bg-gray-900/80 border border-gray-800 rounded-full">
-            <span className="text-sm font-medium text-gray-300 hidden sm:inline">{user.email}</span>
-            {user.role === 'admin' && (
-              <button 
-                  onClick={() => setView('admin')}
-                  className="text-xs text-yellow-300 hover:text-white bg-gray-700 hover:bg-yellow-500/50 rounded-full px-3 py-1 transition-colors duration-200"
-                  title="Admin Dashboard"
-              >
-                  Admin
-              </button>
-            )}
-            <button 
-                onClick={logout} 
-                className="text-xs text-gray-400 hover:text-white bg-gray-700 hover:bg-red-500/50 rounded-full px-3 py-1 transition-colors duration-200"
-                title="Logout"
-            >
-                Logout
-            </button>
-            </div>
         </header>
         
         {activeSessionStart && <SessionTimer startTime={activeSessionStart.toISOString()} />}
@@ -407,7 +341,7 @@ const App = () => {
                 </section>
             )}
 
-            <SessionLog sessions={sessions} setSessions={setSessions} user={user} />
+            <SessionLog sessions={sessions} setSessions={setSessions} />
         </main>
       </div>
     </div>
