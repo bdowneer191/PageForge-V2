@@ -1,19 +1,24 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { get } from '@vercel/blob';
+import { list } from '@vercel/blob';
 import { ApiKeys } from '../types';
 
 const getApiKey = async (sessionId?: string): Promise<string | undefined> => {
     if (sessionId) {
         try {
             const blobPath = `keys/${sessionId}.json`;
-            const blobResponse = await get(blobPath);
-            const userKeys = await blobResponse.json() as ApiKeys;
-            if (userKeys.pageSpeedApiKey) {
-                return userKeys.pageSpeedApiKey;
+            const listResults = await list({ prefix: blobPath, limit: 1 });
+
+            if (listResults.blobs.length > 0) {
+                const blobToGet = listResults.blobs[0];
+                const blobGetResponse = await fetch(blobToGet.url);
+                const userKeys = await blobGetResponse.json() as ApiKeys;
+                if (userKeys.pageSpeedApiKey) {
+                    return userKeys.pageSpeedApiKey;
+                }
             }
         } catch (error) {
-            console.log(`No user-provided PageSpeed key for session ${sessionId}. Falling back to default.`);
+            console.log(`No user-provided PageSpeed key for session ${sessionId}. Falling back to default. Error:`, error);
         }
     }
     return process.env.PAGESPEED_API_KEY;
