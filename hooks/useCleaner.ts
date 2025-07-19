@@ -103,7 +103,7 @@ const useCleaner = () => {
   const cleanHtml = useCallback(async (
     originalHtml: string, 
     userOptions: CleaningOptions,
-    _optimizationPlan: Recommendation[] | null // Keep signature, but it's unused in this implementation
+    sessionId: string
   ): Promise<{ cleanedHtml: string, summary: ImpactSummary, effectiveOptions: CleaningOptions }> => {
     setIsCleaning(true);
 
@@ -187,7 +187,7 @@ const useCleaner = () => {
     processNode(doc.documentElement);
     
     if (effectiveOptions.semanticRewrite) {
-        doc.body.innerHTML = await rewriteToSemanticHtml(doc.body.innerHTML);
+        doc.body.innerHTML = await rewriteToSemanticHtml(doc.body.innerHTML, sessionId);
     }
     
     if (embedsFound) {
