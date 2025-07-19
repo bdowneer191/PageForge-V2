@@ -1,12 +1,12 @@
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verify } from 'jsonwebtoken';
-import { put, get, del, head } from '@vercel/blob';
+import { put, list, del } from '@vercel/blob';
 import type { Session } from '../../types.ts';
 
 interface AuthPayload {
     userId: string;
     email: string | null;
-    githubUsername: string;
     role: 'admin' | 'user';
 }
 
@@ -24,13 +24,18 @@ const getUserFromToken = (token: string | undefined): AuthPayload | null => {
 const getSessions = async (userId: string): Promise<Session[]> => {
     const blobPath = `sessions/${userId}.json`;
     try {
-        const blob = await get(blobPath);
-        return await blob.json();
-    } catch (error: any) {
-        if (error.status === 404) {
+        const { blobs } = await list({ prefix: blobPath, limit: 1 });
+        if (blobs.length === 0) {
             return []; // No sessions found is not an error
         }
-        throw error; // Other errors (like network issues) should be thrown
+        const response = await fetch(blobs[0].url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch sessions blob: ${response.statusText}`);
+        }
+        return await response.json();
+    } catch (error: any) {
+        // Re-throw to be handled by the main handler's catch block
+        throw error;
     }
 };
 
@@ -63,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ...newSessionData,
                     id: `${newSessionData.startTime}-${crypto.randomUUID().slice(0, 8)}`,
                     userId: auth.userId,
-                    userEmail: auth.email || auth.githubUsername // Use username as fallback
+                    userEmail: auth.email
                 } as Session;
 
                 const updatedSessions = [sessionWithId, ...sessions];
