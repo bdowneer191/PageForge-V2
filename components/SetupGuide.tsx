@@ -43,23 +43,29 @@ const SetupGuide: React.FC<ApiManagerProps> = ({ sessionId, apiKeys, setApiKeys,
         setIsLoading(true);
         setMessage('');
         try {
+            const keysToSave = {
+                pageSpeedApiKey: pageSpeedKey || undefined,
+                geminiApiKey: geminiKey || undefined,
+            };
+
             const res = await fetch('/api/keys', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId,
-                    pageSpeedApiKey: pageSpeedKey || apiKeys?.pageSpeedApiKey,
-                    geminiApiKey: geminiKey || apiKeys?.geminiApiKey,
-                }),
+                body: JSON.stringify({ sessionId, ...keysToSave }),
             });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(errorText || 'Failed to save keys.');
+            }
+            
             const data = await res.json();
-            if (!res.ok) throw new Error(data.message);
             
             setApiKeys({
                 pageSpeedApiKey: pageSpeedKey || apiKeys?.pageSpeedApiKey,
                 geminiApiKey: geminiKey || apiKeys?.geminiApiKey,
             });
-            setMessage('API keys saved successfully for this session.');
+            setMessage(data.message || 'API keys saved successfully for this session.');
             setEditMode(false);
         } catch (error: any) {
             setMessage(`Error: ${error.message}`);
@@ -74,11 +80,16 @@ const SetupGuide: React.FC<ApiManagerProps> = ({ sessionId, apiKeys, setApiKeys,
         setMessage('');
         try {
             const res = await fetch(`/api/keys?sessionId=${sessionId}`, { method: 'DELETE' });
+            
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(errorText || 'Failed to clear keys.');
+            }
+
             const data = await res.json();
-            if (!res.ok) throw new Error(data.message);
             
             setApiKeys(null);
-            setMessage('API keys cleared successfully.');
+            setMessage(data.message || 'API keys cleared successfully.');
             setEditMode(true);
         } catch (error: any) {
              setMessage(`Error: ${error.message}`);
@@ -111,10 +122,10 @@ const SetupGuide: React.FC<ApiManagerProps> = ({ sessionId, apiKeys, setApiKeys,
                         <p>Loading API key status...</p>
                     ) : editMode ? (
                         <div className="space-y-4">
-                            <ApiKeyInput label="PageSpeed API Key" value={pageSpeedKey} onChange={e => setPageSpeedKey(e.target.value)} placeholder="Enter your Google PageSpeed API Key" />
-                            <ApiKeyInput label="Gemini API Key" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="Enter your Google Gemini API Key" />
+                            <ApiKeyInput label="PageSpeed API Key" value={pageSpeedKey} onChange={e => setPageSpeedKey(e.target.value)} placeholder="Leave blank to use existing or default" />
+                            <ApiKeyInput label="Gemini API Key" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="Leave blank to use existing or default" />
                             <div>
-                                <button onClick={handleSave} disabled={isLoading} className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-600">
+                                <button onClick={handleSave} disabled={isLoading || (!pageSpeedKey && !geminiKey)} className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed">
                                     {isLoading ? 'Saving...' : 'Save Keys for Session'}
                                 </button>
                                  {apiKeys && <button onClick={() => setEditMode(false)} className="ml-2 text-gray-400 py-2 px-4 rounded-lg hover:bg-gray-700">Cancel</button>}
@@ -140,7 +151,7 @@ const SetupGuide: React.FC<ApiManagerProps> = ({ sessionId, apiKeys, setApiKeys,
                             </div>
                         </div>
                     )}
-                    {message && <p className={`mt-2 ${message.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>{message}</p>}
+                    {message && <p className={`mt-2 ${message.toLowerCase().startsWith('error') ? 'text-red-400' : 'text-green-400'}`}>{message}</p>}
                 </div>
             </div>
         </div>
