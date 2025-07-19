@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { compare } from 'bcryptjs';
 import { sign } from 'jsonwebtoken';
 import { serialize } from 'cookie';
-import { get } from '@vercel/blob';
+import { list } from '@vercel/blob';
 import type { UserProfile } from '../../types.ts';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -24,11 +24,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        const userProfileBlob = await get(`users/${email.toLowerCase()}.json`);
-        const userProfile: UserProfile = await userProfileBlob.json();
+        const { blobs: userProfileBlobs } = await list({ prefix: `users/${email.toLowerCase()}.json`, limit: 1 });
+        if (userProfileBlobs.length === 0) {
+            return res.status(401).json({ error: 'Invalid credentials.' });
+        }
+        const userProfileResponse = await fetch(userProfileBlobs[0].url);
+        if (!userProfileResponse.ok) {
+            return res.status(401).json({ error: 'Invalid credentials.' });
+        }
+        const userProfile: UserProfile = await userProfileResponse.json();
 
-        const authDataBlob = await get(`auth/${userProfile.id}.json`);
-        const { hashedPassword } = await authDataBlob.json();
+        const { blobs: authDataBlobs } = await list({ prefix: `auth/${userProfile.id}.json`, limit: 1 });
+        if (authDataBlobs.length === 0) {
+            console.error(`Auth data missing for user: ${userProfile.id}`);
+            return res.status(401).json({ error: 'Invalid credentials.' });
+        }
+        const authDataResponse = await fetch(authDataBlobs[0].url);
+        if (!authDataResponse.ok) {
+            return res.status(401).json({ error: 'Invalid credentials.' });
+        }
+        const { hashedPassword } = await authDataResponse.json();
         
         const isMatch = await compare(password, hashedPassword);
         if (!isMatch) {
@@ -49,9 +64,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ user: userProfile });
 
     } catch (error: any) {
-        if (error.status === 404) {
-            return res.status(401).json({ error: 'Invalid credentials.' });
-        }
         console.error('Login Error:', error);
         return res.status(500).json({ error: 'An internal server error occurred.' });
     }
