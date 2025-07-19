@@ -7,7 +7,7 @@ import SessionTimer from './components/SessionTimer.tsx';
 import useCleaner from './hooks/useCleaner.ts';
 import { generateOptimizationPlan, generateComparisonAnalysis } from './services/geminiService.ts';
 import { fetchPageSpeedReport } from './services/pageSpeedService.ts';
-import { Recommendation, Session, CleaningOptions, ImpactSummary } from './types.ts';
+import { Recommendation, Session, CleaningOptions, ImpactSummary, ApiKeys } from './types.ts';
 
 const ScoreCircle = ({ score, label, loading = false }) => {
     const s = score * 100;
@@ -51,6 +51,18 @@ const ScoreCircle = ({ score, label, loading = false }) => {
     );
 };
 
+const SESSION_LOG_KEY = 'pageforge_ai_sessions';
+const SESSION_ID_KEY = 'pageforge_session_id';
+
+const getSessionId = (): string => {
+    let sid = localStorage.getItem(SESSION_ID_KEY);
+    if (!sid) {
+        sid = crypto.randomUUID();
+        localStorage.setItem(SESSION_ID_KEY, sid);
+    }
+    return sid;
+};
+
 const App = () => {
   const [url, setUrl] = useState('');
   
@@ -62,15 +74,7 @@ const App = () => {
   const [comparisonAnalysis, setComparisonAnalysis] = useState(null);
   const [apiError, setApiError] = useState('');
   
-  const [sessions, setSessions] = useState<Session[]>(() => {
-    try {
-        const localData = localStorage.getItem('pageforge-sessions');
-        return localData ? JSON.parse(localData) : [];
-    } catch (error) {
-        console.error("Failed to parse sessions from localStorage", error);
-        return [];
-    }
-  });
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionStart, setActiveSessionStart] = useState<Date | null>(null);
 
   const { isCleaning, cleanHtml } = useCleaner();
@@ -94,9 +98,40 @@ const App = () => {
       deferScripts: true,
   });
 
+  const [sessionId] = useState(getSessionId());
+  const [apiKeys, setApiKeys] = useState<ApiKeys | null>(null);
+  const [keysLoading, setKeysLoading] = useState(true);
+
   useEffect(() => {
-    localStorage.setItem('pageforge-sessions', JSON.stringify(sessions));
-  }, [sessions]);
+    try {
+        const storedSessions = localStorage.getItem(SESSION_LOG_KEY);
+        if (storedSessions) {
+            setSessions(JSON.parse(storedSessions));
+        }
+    } catch (error) {
+        console.error('Failed to load sessions from localStorage:', error);
+        setSessions([]);
+    }
+
+    const fetchKeys = async () => {
+        setKeysLoading(true);
+        try {
+            const res = await fetch(`/api/keys?sessionId=${sessionId}`);
+            if (res.ok) {
+                const data = await res.json();
+                setApiKeys(data);
+            } else {
+                setApiKeys(null);
+            }
+        } catch (error) {
+            console.error('Failed to fetch API keys:', error);
+            setApiKeys(null);
+        } finally {
+            setKeysLoading(false);
+        }
+    };
+    fetchKeys();
+  }, [sessionId]);
 
   const handleMeasure = async (isRemeasure = false) => {
     if (!url) { setApiError('Please enter a URL to measure.'); return; }
@@ -112,15 +147,16 @@ const App = () => {
     }
 
     try {
-        const newReport = await fetchPageSpeedReport(url);
+        const newReport = await fetchPageSpeedReport(url, sessionId);
 
         if (isRemeasure && pageSpeedBefore) {
             setPageSpeedAfter(newReport);
-            const analysis = await generateComparisonAnalysis(pageSpeedBefore, newReport);
+            const analysis = await generateComparisonAnalysis(pageSpeedBefore, newReport, sessionId);
             setComparisonAnalysis(analysis);
 
             const sessionEndTime = new Date();
-            const newSession: Omit<Session, 'id'> = {
+            const newSession: Session = {
+                id: `${sessionEndTime.toISOString()}-${Math.random().toString(36).substring(2, 9)}`,
                 url,
                 startTime: activeSessionStart!.toISOString(),
                 endTime: sessionEndTime.toISOString(),
@@ -135,16 +171,14 @@ const App = () => {
                 },
             };
             
-            const sessionWithId: Session = {
-                ...newSession,
-                id: `${newSession.startTime}-${crypto.randomUUID().slice(0, 8)}`,
-            };
-            setSessions(prev => [sessionWithId, ...prev]);
-
+            const updatedSessions = [newSession, ...sessions];
+            setSessions(updatedSessions);
+            localStorage.setItem(SESSION_LOG_KEY, JSON.stringify(updatedSessions));
+            setActiveSessionStart(null); // End session
         } else {
             setPageSpeedBefore(newReport);
             setIsGeneratingPlan(true);
-            const plan = await generateOptimizationPlan(newReport);
+            const plan = await generateOptimizationPlan(newReport, sessionId);
             setOptimizationPlan(plan);
         }
     } catch (error: any) {
@@ -162,14 +196,14 @@ const App = () => {
     }
     setApiError('');
     try {
-        const { cleanedHtml: resultHtml, summary } = await cleanHtml(originalHtml, options, optimizationPlan);
+        const { cleanedHtml: resultHtml, summary } = await cleanHtml(originalHtml, options, sessionId);
         setCleanedHtml(resultHtml);
         setImpactSummary(summary);
     } catch (error) {
         console.error('Cleaning process failed:', error);
         setApiError('An unexpected error occurred during the cleaning process.');
     }
-  }, [originalHtml, options, cleanHtml, isCleaning, optimizationPlan]);
+  }, [originalHtml, options, cleanHtml, isCleaning, sessionId]);
 
   const handleDownloadHtml = () => {
     if (!cleanedHtml) return;
@@ -183,11 +217,11 @@ const App = () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(downloadUrl);
   };
-  
+
   return (
     <div className="min-h-screen text-white bg-gray-950 p-4 sm:p-6 lg:p-8 font-sans flex flex-col">
       <div className="max-w-7xl mx-auto w-full">
-        <header className="mb-8">
+        <header className="mb-8 relative">
           <div className="text-center">
              <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300 animate-glow">PageForge AI</h1>
             <p className="text-lg text-gray-300 mt-2">Full Performance Analysis & Speed Boost</p>
@@ -198,7 +232,7 @@ const App = () => {
         {activeSessionStart && <SessionTimer startTime={activeSessionStart.toISOString()} />}
 
         <main className="space-y-8">
-            <SetupGuide />
+            <SetupGuide sessionId={sessionId} apiKeys={apiKeys} setApiKeys={setApiKeys} keysLoading={keysLoading}/>
 
             <section className="bg-gray-900 p-6 rounded-xl border border-gray-800">
                 <h2 className="text-2xl font-bold text-blue-300 mb-4">Step 1: Measure Performance</h2>
