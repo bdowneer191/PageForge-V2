@@ -7,7 +7,7 @@ export interface Session {
   beforeScores: { mobile: number, desktop: number };
   afterScores: { mobile: number, desktop: number };
   userId: string;
-  userEmail: string;
+  userEmail: string | null;
 }
 
 export interface UserProfile {
