@@ -1,10 +1,10 @@
 
-export const fetchPageSpeedReport = async (url: string) => {
+export const fetchPageSpeedReport = async (url: string, sessionId: string) => {
     try {
         const response = await fetch('/api/pagespeed', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pageUrl: url }),
+            body: JSON.stringify({ pageUrl: url, sessionId }),
         });
 
         if (!response.ok) {
