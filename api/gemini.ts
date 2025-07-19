@@ -1,21 +1,25 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
-import { get } from '@vercel/blob';
+import { list } from '@vercel/blob';
 import { ApiKeys } from '../types';
 
 const getApiKey = async (sessionId?: string): Promise<string | undefined> => {
     if (sessionId) {
         try {
             const blobPath = `keys/${sessionId}.json`;
-            const blobResponse = await get(blobPath);
-            const userKeys = await blobResponse.json() as ApiKeys;
-            if (userKeys.geminiApiKey) {
-                return userKeys.geminiApiKey;
+            const listResults = await list({ prefix: blobPath, limit: 1 });
+            
+            if (listResults.blobs.length > 0) {
+                const blobToGet = listResults.blobs[0];
+                const blobGetResponse = await fetch(blobToGet.url);
+                const userKeys = await blobGetResponse.json() as ApiKeys;
+                if (userKeys.geminiApiKey) {
+                    return userKeys.geminiApiKey;
+                }
             }
         } catch (error) {
-            // This can happen if blob doesn't exist (404), which is fine.
-            console.log(`No user-provided Gemini key found for session ${sessionId}. Falling back to default.`);
+            console.log(`No user-provided Gemini key found for session ${sessionId}. Falling back to default. Error:`, error);
         }
     }
     return process.env.GEMINI_API_KEY;
