@@ -2,12 +2,11 @@
 import React, { useState, useMemo } from 'react';
 import Icon from './Icon.tsx';
 import { getDhakaDate, formatDuration, isTodayInDhaka } from '../utils/time.ts';
-import { Session, UserProfile } from '../types.ts';
+import { Session } from '../types.ts';
 
 interface SessionLogProps {
     sessions: Session[];
     setSessions: (sessions: Session[]) => void;
-    user: UserProfile | null;
 }
 
 const ScoreDiff = ({ before, after }: { before: number, after: number }) => {
@@ -46,9 +45,8 @@ const convertToCSV = (sessions: Session[]): string => {
     return [headers.join(','), ...rows].join('\n');
 };
 
-const SessionLog: React.FC<SessionLogProps> = ({ sessions, setSessions, user }) => {
+const SessionLog: React.FC<SessionLogProps> = ({ sessions, setSessions }) => {
     const [isOpen, setIsOpen] = useState(true);
-    const [isClearing, setIsClearing] = useState(false);
     const [showAll, setShowAll] = useState(false);
 
     const todaySessions = useMemo(() => {
@@ -73,26 +71,11 @@ const SessionLog: React.FC<SessionLogProps> = ({ sessions, setSessions, user }) 
         URL.revokeObjectURL(url);
     };
     
-    const handleClear = async () => {
-        if (!user || sessions.length === 0 || !window.confirm('Are you sure you want to permanently delete all your session history? This action cannot be undone.')) {
+    const handleClear = () => {
+        if (sessions.length === 0 || !window.confirm('Are you sure you want to permanently delete all your session history? This action cannot be undone.')) {
             return;
         }
-        setIsClearing(true);
-        try {
-            const response = await fetch('/api/sessions', {
-                method: 'DELETE'
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to clear history.');
-            }
-            setSessions([]);
-        } catch (error: any) {
-            console.error('Error clearing sessions:', error);
-            alert(`Error: ${error.message}`);
-        } finally {
-            setIsClearing(false);
-        }
+        setSessions([]);
     };
 
 
@@ -139,10 +122,10 @@ const SessionLog: React.FC<SessionLogProps> = ({ sessions, setSessions, user }) 
                                </button>
                                <button
                                    onClick={handleClear}
-                                   disabled={isClearing || sessions.length === 0}
+                                   disabled={sessions.length === 0}
                                    className="flex items-center justify-center gap-1.5 text-sm py-2 px-4 bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed text-white"
                                >
-                                   {isClearing ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> : <Icon name="trash" className="w-4 h-4" />}
+                                   <Icon name="trash" className="w-4 h-4" />
                                    Clear History
                                </button>
                            </div>
