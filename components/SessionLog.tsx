@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import Icon from './Icon.tsx';
 import { getDhakaDate, formatDuration, isTodayInDhaka } from '../utils/time.ts';
@@ -7,6 +6,7 @@ import { Session } from '../types.ts';
 interface SessionLogProps {
     sessions: Session[];
     setSessions: (sessions: Session[]) => void;
+    userId: string | undefined;
 }
 
 const ScoreDiff = ({ before, after }: { before: number, after: number }) => {
@@ -45,9 +45,12 @@ const convertToCSV = (sessions: Session[]): string => {
     return [headers.join(','), ...rows].join('\n');
 };
 
-const SessionLog: React.FC<SessionLogProps> = ({ sessions, setSessions }) => {
+const SessionLog: React.FC<SessionLogProps> = ({ sessions, setSessions, userId }) => {
     const [isOpen, setIsOpen] = useState(true);
+    const [isClearing, setIsClearing] = useState(false);
     const [showAll, setShowAll] = useState(false);
+
+    const SESSION_STORAGE_KEY = `pageforge_ai_sessions_${userId}`;
 
     const todaySessions = useMemo(() => {
         return sessions.filter(s => isTodayInDhaka(new Date(s.startTime)));
@@ -71,11 +74,20 @@ const SessionLog: React.FC<SessionLogProps> = ({ sessions, setSessions }) => {
         URL.revokeObjectURL(url);
     };
     
-    const handleClear = () => {
-        if (sessions.length === 0 || !window.confirm('Are you sure you want to permanently delete all your session history? This action cannot be undone.')) {
+    const handleClear = async () => {
+        if (!userId || sessions.length === 0 || !window.confirm('Are you sure you want to permanently delete all your session history? This action cannot be undone.')) {
             return;
         }
-        setSessions([]);
+        setIsClearing(true);
+        try {
+            localStorage.removeItem(SESSION_STORAGE_KEY);
+            setSessions([]);
+        } catch (error: any) {
+            console.error('Error clearing sessions:', error);
+            alert(`Error: ${error.message}`);
+        } finally {
+            setIsClearing(false);
+        }
     };
 
 
@@ -122,10 +134,10 @@ const SessionLog: React.FC<SessionLogProps> = ({ sessions, setSessions }) => {
                                </button>
                                <button
                                    onClick={handleClear}
-                                   disabled={sessions.length === 0}
+                                   disabled={isClearing || sessions.length === 0}
                                    className="flex items-center justify-center gap-1.5 text-sm py-2 px-4 bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed text-white"
                                >
-                                   <Icon name="trash" className="w-4 h-4" />
+                                   {isClearing ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> : <Icon name="trash" className="w-4 h-4" />}
                                    Clear History
                                </button>
                            </div>

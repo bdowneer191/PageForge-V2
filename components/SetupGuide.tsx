@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import Icon from './Icon.tsx';
 import { ApiKeys } from '../types.ts';
 
 interface ApiManagerProps {
-    sessionId: string;
+    userId: string;
     apiKeys: ApiKeys | null;
     setApiKeys: (keys: ApiKeys | null) => void;
     keysLoading: boolean;
@@ -23,7 +22,7 @@ const ApiKeyInput = ({ label, value, onChange, placeholder, type = "password" })
     </div>
 );
 
-const SetupGuide: React.FC<ApiManagerProps> = ({ sessionId, apiKeys, setApiKeys, keysLoading }) => {
+const SetupGuide: React.FC<ApiManagerProps> = ({ userId, apiKeys, setApiKeys, keysLoading }) => {
     const [isOpen, setIsOpen] = useState(true);
     const [pageSpeedKey, setPageSpeedKey] = useState('');
     const [geminiKey, setGeminiKey] = useState('');
@@ -43,29 +42,23 @@ const SetupGuide: React.FC<ApiManagerProps> = ({ sessionId, apiKeys, setApiKeys,
         setIsLoading(true);
         setMessage('');
         try {
-            const keysToSave = {
-                pageSpeedApiKey: pageSpeedKey || undefined,
-                geminiApiKey: geminiKey || undefined,
-            };
-
             const res = await fetch('/api/keys', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId, ...keysToSave }),
+                body: JSON.stringify({
+                    userId,
+                    pageSpeedApiKey: pageSpeedKey || apiKeys?.pageSpeedApiKey,
+                    geminiApiKey: geminiKey || apiKeys?.geminiApiKey,
+                }),
             });
-
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(errorText || 'Failed to save keys.');
-            }
-            
             const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
             
             setApiKeys({
                 pageSpeedApiKey: pageSpeedKey || apiKeys?.pageSpeedApiKey,
                 geminiApiKey: geminiKey || apiKeys?.geminiApiKey,
             });
-            setMessage(data.message || 'API keys saved successfully for this session.');
+            setMessage('API keys saved successfully for this user.');
             setEditMode(false);
         } catch (error: any) {
             setMessage(`Error: ${error.message}`);
@@ -75,21 +68,16 @@ const SetupGuide: React.FC<ApiManagerProps> = ({ sessionId, apiKeys, setApiKeys,
     };
     
     const handleClear = async () => {
-         if (!window.confirm('Are you sure you want to clear your saved API keys for this session?')) return;
+         if (!window.confirm('Are you sure you want to clear your saved API keys?')) return;
         setIsLoading(true);
         setMessage('');
         try {
-            const res = await fetch(`/api/keys?sessionId=${sessionId}`, { method: 'DELETE' });
-            
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(errorText || 'Failed to clear keys.');
-            }
-
+            const res = await fetch(`/api/keys?userId=${userId}`, { method: 'DELETE' });
             const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
             
             setApiKeys(null);
-            setMessage(data.message || 'API keys cleared successfully.');
+            setMessage('API keys cleared successfully.');
             setEditMode(true);
         } catch (error: any) {
              setMessage(`Error: ${error.message}`);
@@ -115,18 +103,18 @@ const SetupGuide: React.FC<ApiManagerProps> = ({ sessionId, apiKeys, setApiKeys,
             >
                 <div className="p-6 border-t border-gray-800 text-gray-400 text-sm space-y-4">
                     <p>
-                        You can provide your own API keys to use this tool. Keys are stored securely on the server, associated with your browser session, and are never exposed to the client. Clearing your browser data will remove your keys. If no keys are provided, the app will attempt to use the developer's default keys.
+                        You can provide your own API keys to use this tool. Keys are stored securely on the server, associated with your account, and are never exposed to the client. If no keys are provided, the app will attempt to use the developer's default keys.
                     </p>
 
                     {keysLoading ? (
                         <p>Loading API key status...</p>
                     ) : editMode ? (
                         <div className="space-y-4">
-                            <ApiKeyInput label="PageSpeed API Key" value={pageSpeedKey} onChange={e => setPageSpeedKey(e.target.value)} placeholder="Leave blank to use existing or default" />
-                            <ApiKeyInput label="Gemini API Key" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="Leave blank to use existing or default" />
+                            <ApiKeyInput label="PageSpeed API Key" value={pageSpeedKey} onChange={e => setPageSpeedKey(e.target.value)} placeholder="Enter your Google PageSpeed API Key" />
+                            <ApiKeyInput label="Gemini API Key" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="Enter your Google Gemini API Key" />
                             <div>
-                                <button onClick={handleSave} disabled={isLoading || (!pageSpeedKey && !geminiKey)} className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed">
-                                    {isLoading ? 'Saving...' : 'Save Keys for Session'}
+                                <button onClick={handleSave} disabled={isLoading} className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-600">
+                                    {isLoading ? 'Saving...' : 'Save Keys'}
                                 </button>
                                  {apiKeys && <button onClick={() => setEditMode(false)} className="ml-2 text-gray-400 py-2 px-4 rounded-lg hover:bg-gray-700">Cancel</button>}
                             </div>
@@ -151,7 +139,7 @@ const SetupGuide: React.FC<ApiManagerProps> = ({ sessionId, apiKeys, setApiKeys,
                             </div>
                         </div>
                     )}
-                    {message && <p className={`mt-2 ${message.toLowerCase().startsWith('error') ? 'text-red-400' : 'text-green-400'}`}>{message}</p>}
+                    {message && <p className={`mt-2 ${message.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>{message}</p>}
                 </div>
             </div>
         </div>
