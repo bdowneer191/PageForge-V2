@@ -1,12 +1,4 @@
 
-export interface UserProfile {
-  id: string; // Unique identifier from your auth provider
-  email: string;
-  full_name?: string;
-  avatar_url?: string;
-  roles?: string[]; // For role-based access control
-}
-
 export interface Session {
   id: string;
   url: string;
@@ -15,6 +7,13 @@ export interface Session {
   duration: number;
   beforeScores: { mobile: number, desktop: number };
   afterScores: { mobile: number, desktop: number };
+}
+
+export interface UserProfile {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
 }
 
 export interface ApiKeys {
