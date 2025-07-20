@@ -1,10 +1,10 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react';
 import Icon from './components/Icon.tsx';
 import SetupGuide from './components/SetupGuide.tsx';
 import SessionLog from './components/SessionLog.tsx';
 import SessionTimer from './components/SessionTimer.tsx';
-import useCleaner from './hooks/useCleaner.ts';
 import { generateOptimizationPlan, generateComparisonAnalysis } from './services/geminiService.ts';
 import { fetchPageSpeedReport } from './services/pageSpeedService.ts';
 import { Recommendation, Session, CleaningOptions, ImpactSummary, ApiKeys } from './types.ts';
@@ -77,7 +77,6 @@ const App = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionStart, setActiveSessionStart] = useState<Date | null>(null);
 
-  const { isCleaning, cleanHtml } = useCleaner();
   const [originalHtml, setOriginalHtml] = useState('');
   const [cleanedHtml, setCleanedHtml] = useState('');
   const [impactSummary, setImpactSummary] = useState<ImpactSummary | null>(null);
@@ -189,21 +188,6 @@ const App = () => {
     }
   };
 
-  const handleClean = useCallback(async () => {
-    if (isCleaning || !originalHtml) {
-        if (!originalHtml) setApiError('Please provide some HTML to clean first.');
-        return;
-    }
-    setApiError('');
-    try {
-        const { cleanedHtml: resultHtml, summary } = await cleanHtml(originalHtml, options, sessionId);
-        setCleanedHtml(resultHtml);
-        setImpactSummary(summary);
-    } catch (error) {
-        console.error('Cleaning process failed:', error);
-        setApiError('An unexpected error occurred during the cleaning process.');
-    }
-  }, [originalHtml, options, cleanHtml, isCleaning, sessionId]);
 
   const handleDownloadHtml = () => {
     if (!cleanedHtml) return;
@@ -226,6 +210,14 @@ const App = () => {
              <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300 animate-glow">PageForge AI</h1>
             <p className="text-lg text-gray-300 mt-2">Full Performance Analysis & Speed Boost</p>
             <p className="text-gray-400 mt-1">Prod by <a href="https://github.com/nion-dev" target="_blank" rel="noopener noreferrer" className="font-semibold text-teal-300 hover:underline">Nion</a></p>
+          </div>
+          <div className="absolute top-0 right-0">
+            <SignedIn>
+              <UserButton />
+            </SignedIn>
+            <SignedOut>
+              <a href="/sign-in">Sign In</a>
+            </SignedOut>
           </div>
         </header>
         
@@ -281,61 +273,6 @@ const App = () => {
                 )}
             </section>
             
-            <section className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-                <h2 className="text-2xl font-bold text-green-300 mb-4">Step 2: Clean & Optimize HTML</h2>
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <textarea
-                        value={originalHtml}
-                        onChange={(e) => setOriginalHtml(e.target.value)}
-                        placeholder="Paste your original HTML code here..."
-                        className="w-full h-64 bg-gray-800 border border-gray-700 rounded-lg p-4 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                     <div className="w-full h-64 bg-gray-800 border border-gray-700 rounded-lg p-4 font-mono text-sm relative overflow-auto">
-                        {isCleaning && <div className="absolute inset-0 bg-gray-800/80 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-400"></div></div>}
-                        {cleanedHtml ? <pre><code>{cleanedHtml}</code></pre> : <p className="text-gray-500">Cleaned HTML will appear here...</p>}
-                    </div>
-                </div>
-                <div className="my-4">
-                    <h3 className="text-lg font-semibold mb-2">Cleaning Options</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 text-sm">
-                        {Object.keys(options).map(key => (
-                             <label key={key} className="flex items-center space-x-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={options[key]}
-                                    onChange={() => setOptions(prev => ({ ...prev, [key]: !prev[key] }))}
-                                    className="h-4 w-4 rounded bg-gray-700 border-gray-600 text-green-500 focus:ring-green-600"
-                                />
-                                <span>{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</span>
-                            </label>
-                        ))}
-                    </div>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-4 items-center">
-                    <button
-                        onClick={handleClean}
-                        disabled={isCleaning || !originalHtml}
-                        className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-wait text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                         {isCleaning ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : <Icon name="magic" className="w-5 h-5" />}
-                        Clean HTML
-                    </button>
-                    {cleanedHtml && 
-                        <button
-                            onClick={handleDownloadHtml}
-                            className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
-                        >
-                            <Icon name="download" className="w-5 h-5" />
-                            Download
-                        </button>
-                    }
-                    {impactSummary && (
-                        <div className="text-sm text-gray-300">
-                           Size reduced from <span className="font-bold text-red-400">{(impactSummary.originalBytes / 1024).toFixed(2)} KB</span> to <span className="font-bold text-green-400">{(impactSummary.cleanedBytes / 1024).toFixed(2)} KB</span>. Saved <span className="font-bold text-green-300">{(impactSummary.bytesSaved / 1024).toFixed(2)} KB</span>.
-                        </div>
-                    )}
-                </div>
-            </section>
             
             {(pageSpeedBefore || pageSpeedAfter) && (
                 <section className="bg-gray-900 p-6 rounded-xl border border-gray-800">

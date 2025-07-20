@@ -9,10 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.35.3",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@google/genai": "^1.9.0",
-    "@vercel/blob": "^0.23.2"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
