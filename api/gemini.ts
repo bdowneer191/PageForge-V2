@@ -1,25 +1,21 @@
-
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
-import { list } from '@vercel/blob';
+import { head } from '@vercel/blob';
 import { ApiKeys } from '../types';
 
-const getApiKey = async (sessionId?: string): Promise<string | undefined> => {
-    if (sessionId) {
+const getApiKey = async (userId?: string): Promise<string | undefined> => {
+    if (userId) {
         try {
-            const blobPath = `keys/${sessionId}.json`;
-            const listResults = await list({ prefix: blobPath, limit: 1 });
-            
-            if (listResults.blobs.length > 0) {
-                const blobToGet = listResults.blobs[0];
-                const blobGetResponse = await fetch(blobToGet.url);
-                const userKeys = await blobGetResponse.json() as ApiKeys;
-                if (userKeys.geminiApiKey) {
-                    return userKeys.geminiApiKey;
-                }
+            const blobPath = `keys/${userId}.json`;
+            const blob = await head(blobPath);
+            const response = await fetch(blob.url);
+            const userKeys = await response.json() as ApiKeys;
+            if (userKeys.geminiApiKey) {
+                return userKeys.geminiApiKey;
             }
         } catch (error) {
-            console.log(`No user-provided Gemini key found for session ${sessionId}. Falling back to default. Error:`, error);
+            // This can happen if blob doesn't exist (404), which is fine.
+            console.log(`No user-provided Gemini key found for user ${userId}. Falling back to default.`);
         }
     }
     return process.env.GEMINI_API_KEY;
@@ -31,9 +27,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
-    const { action, payload, sessionId } = req.body;
+    const { action, payload, userId } = req.body;
     
-    const apiKey = await getApiKey(sessionId);
+    const apiKey = await getApiKey(userId);
     if (!apiKey) {
         return res.status(500).json({ message: 'Gemini API key is not configured on the server and no user-provided key is available.' });
     }

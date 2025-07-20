@@ -1,24 +1,19 @@
-
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { list } from '@vercel/blob';
+import { head } from '@vercel/blob';
 import { ApiKeys } from '../types';
 
-const getApiKey = async (sessionId?: string): Promise<string | undefined> => {
-    if (sessionId) {
+const getApiKey = async (userId?: string): Promise<string | undefined> => {
+    if (userId) {
         try {
-            const blobPath = `keys/${sessionId}.json`;
-            const listResults = await list({ prefix: blobPath, limit: 1 });
-
-            if (listResults.blobs.length > 0) {
-                const blobToGet = listResults.blobs[0];
-                const blobGetResponse = await fetch(blobToGet.url);
-                const userKeys = await blobGetResponse.json() as ApiKeys;
-                if (userKeys.pageSpeedApiKey) {
-                    return userKeys.pageSpeedApiKey;
-                }
+            const blobPath = `keys/${userId}.json`;
+            const blob = await head(blobPath);
+            const response = await fetch(blob.url);
+            const userKeys = await response.json() as ApiKeys;
+            if (userKeys.pageSpeedApiKey) {
+                return userKeys.pageSpeedApiKey;
             }
         } catch (error) {
-            console.log(`No user-provided PageSpeed key for session ${sessionId}. Falling back to default. Error:`, error);
+            console.log(`No user-provided PageSpeed key for user ${userId}. Falling back to default.`);
         }
     }
     return process.env.PAGESPEED_API_KEY;
@@ -41,9 +36,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
-    const { pageUrl, sessionId } = req.body;
+    const { pageUrl, userId } = req.body;
     
-    const apiKey = await getApiKey(sessionId);
+    const apiKey = await getApiKey(userId);
 
     if (!apiKey) {
         return res.status(500).json({ message: 'PageSpeed API key is not configured on the server and no user-provided key is available.' });
