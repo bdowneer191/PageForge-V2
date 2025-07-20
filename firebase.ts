@@ -1,17 +1,31 @@
 import { initializeApp } from "@firebase/app";
 import { getAuth } from "@firebase/auth";
 
-// NOTE: In a production environment, you should use environment variables
-// (e.g., import.meta.env.VITE_FIREBASE_API_KEY) to store these keys securely.
-// For this setup, we are using the provided configuration directly.
+// Firebase configuration using environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyBNXgnt0MISdQhu_zCJZd7pYBQZr1Wf6Rg",
-  authDomain: "pageforge-86110.firebaseapp.com",
-  projectId: "pageforge-86110",
-  storageBucket: "pageforge-86110.firebasestorage.app",
-  messagingSenderId: "233555864946",
-  appId: "1:233555864946:web:2979418f2ed884a02401eb"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
+
+// Validate that all required environment variables are present
+const requiredEnvVars = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID'
+];
+
+const missingEnvVars = requiredEnvVars.filter(envVar => !import.meta.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+  throw new Error(`Missing required Firebase environment variables: ${missingEnvVars.join(', ')}`);
+}
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
